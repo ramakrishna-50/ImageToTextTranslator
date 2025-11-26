@@ -1,50 +1,60 @@
 import streamlit as st
-from googletrans import Translator
-from PIL import Image
 import fitz
+import requests
+import json
 
-st.set_page_config(page_title="Translator", page_icon="🌍")
+st.set_page_config(page_title="PDF / Text Translator", page_icon="🌍")
 
-LANG_MAP = {
+LANG_CODES = {
     "Telugu": "te",
     "Hindi": "hi",
     "Tamil": "ta",
     "English": "en"
 }
 
-translator = Translator()
-
+# PDF extraction
 def extract_pdf(uploaded_file):
     text = ""
-    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-    for page in doc:
-        text += page.get_text()
+    with fitz.open(stream=uploaded_file.read(), filetype="pdf") as doc:
+        for page in doc:
+            text += page.get_text()
     return text
 
-st.title("📸 Image / 📄 PDF ➜ 🌍 Text Translation System")
+# Hugging Face API (no token required)
+def translate(text, target_lang):
+    url = "https://api-inference.huggingface.co/models/Helsinki-NLP/opus-mt-en-" + target_lang
+    payload = {"inputs": text}
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    result = response.json()
+    try:
+        return result[0]['translation_text']
+    except:
+        return "⚠ Translation failed. Try shorter text."
 
-choice = st.radio("Select input type:", ["Image", "PDF", "Plain Text"])
+st.title("📄 PDF / 📝 Text ➜ 🌍 Multi-Language Translator")
 
-uploaded_file = st.file_uploader("Upload file", type=["jpg", "jpeg", "png", "pdf", "txt"])
-target_lang = st.selectbox("Translate to:", list(LANG_MAP.keys()))
+mode = st.radio("Select Input Type:", ["PDF", "Plain Text"])
+file = None
+
+if mode == "PDF":
+    file = st.file_uploader("Upload PDF", type=["pdf"])
+elif mode == "Plain Text":
+    file = st.text_area("Enter text here:")
+
+target = st.selectbox("Translate To:", list(LANG_CODES.keys()))
 
 if st.button("Translate"):
-    if not uploaded_file:
-        st.error("Upload a file first.")
+    if not file:
+        st.error("Upload or enter text first!")
     else:
-        if choice == "PDF":
-            text = extract_pdf(uploaded_file)
+        if mode == "PDF":
+            text = extract_pdf(file)
+        else:
+            text = file
 
-        elif choice == "Plain Text":
-            text = uploaded_file.read().decode("utf-8")
+        result = translate(text, LANG_CODES[target])
+        st.subheader("Translated Text:")
+        st.write(result)
 
-        elif choice == "Image":
-            st.error("⚠ Image OCR unsupported on cloud. Use PDF/Text.")
-            st.stop()
-
-        translated = translator.translate(text, dest=LANG_MAP[target_lang]).text
-        st.subheader("Translated Text")
-        st.write(translated)
-
-        st.download_button("⬇ Download Result", translated)
-
+        st.download_button("⬇ Download Translation", result)
