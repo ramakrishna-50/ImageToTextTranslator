@@ -1,6 +1,5 @@
 streamlit
-pytesseract
-deep_translator
 pillow
-PyMuPDF
-
+pytesseract
+deep-translator
+pymupdf
